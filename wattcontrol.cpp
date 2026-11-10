@@ -279,3 +279,16 @@ float leerPrecio() {
     } while (precio <= 0.0f);
     return precio;
 }
+
+
+int main() {
+    srand(SEMILLA);
+    Mercado mercado;
+    CargaCritica ordenadora("Ordenadora electrica", POTENCIA_ORDENADORA);
+    CargaCritica refrigerador("Refrigerador de leche", POTENCIA_REFRIGERADOR);
+    CargaAplazable riego("Bomba de riego", POTENCIA_BOMBA_RIEGO);
+    Negocio finca("Finca lechera El Buen Pasto", &mercado);
+    finca.agregarCarga(&ordenadora);
+    finca.agregarCarga(&refrigerador);
+    finca.agregarCarga(&riego);
+    finca.mostrar();
