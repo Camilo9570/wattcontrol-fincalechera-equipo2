@@ -293,7 +293,7 @@ int main() {
     finca.agregarCarga(&riego);
     finca.mostrar();
 
-    
+
     int opcion;
     int hora = 6;
     float precio = 500.0f;
@@ -317,7 +317,7 @@ int main() {
         case 2:
             finca.evaluar(hora, precio, nivel);
             break;
-        case 3:
+         case 3:
             finca.simularDia();
             haySimulacion = true;
             break;
