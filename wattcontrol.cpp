@@ -168,3 +168,80 @@ public:
                  << (encender ? "ENCENDER" : "APLAZAR/APAGAR") << "\n";
         }
     }
+    
+
+    void simularDia() {
+        medidor.reiniciar();
+        costoSinGestor = 0.0f;
+        costoConGestor = 0.0f;
+        horasSimuladas = 0;
+        fallas = 0;
+        cout << "\n--- Simulacion de 24 horas ---\n";
+        cout << setw(5) << "Hora" << setw(9) << "Precio" << setw(10)
+             << "Gestor" << setw(14) << "Costo hora" << "\n";
+
+
+        for (int hora = 0; hora < HORAS_DIA; ++hora) {
+            float precio = mercado->precioHora(hora);
+            float potenciaSinGestor = POTENCIA_ORDENADORA + POTENCIA_REFRIGERADOR +
+                                      POTENCIA_BOMBA_RIEGO;
+            costoSinGestor += potenciaSinGestor * precio;
+
+
+            if (precio > PRECIO_ESCASEZ) {
+                cout << setw(5) << hora << setw(9) << precio
+                     << " PRECIO DE ESCASEZ: break\n";
+                break;
+            }
+
+
+            ++horasSimuladas;
+            if (rand() % FALLA_CADA == 0) {
+                for (int i = 0; i < cantidadCargas; ++i) {
+                    cargas[i]->apagar();
+                }
+                ++fallas;
+                cout << setw(5) << hora << setw(9) << "--"
+                     << " falla de lectura: continue\n";
+                continue;
+            }
+
+
+            float costoHora = 0.0f;
+            for (int i = 0; i < cantidadCargas; ++i) {
+                if (cargas[i]->debeEncender(hora, precio, NIVEL_OBJETIVO)) {
+                    cargas[i]->encender();
+                    costoHora += cargas[i]->costoHora(precio);
+                    medidor.registrar(cargas[i]->getPotencia(), precio);
+                } else {
+                    cargas[i]->apagar();
+                }
+            }
+            costoConGestor += costoHora;
+            cout << setw(5) << hora << setw(9) << precio << setw(10) << "activo"
+                 << setw(14) << fixed << setprecision(0) << costoHora << "\n";
+        }
+    }
+
+
+    void resumen() const {
+        cout << "\n--- Resumen de " << nombre << " ---\n";
+        cout << "Horas simuladas: " << horasSimuladas << " de " << HORAS_DIA
+             << " | fallas: " << fallas << "\n";
+        for (int i = 0; i < cantidadCargas; ++i) {
+            cout << "  " << setw(24) << left << cargas[i]->getNombre() << right
+                 << cargas[i]->getHorasUso() << " h, "
+                 << cargas[i]->getHorasUso() * cargas[i]->getPotencia() << " kWh\n";
+        }
+        cout << fixed << setprecision(0)
+             << "Consumo con gestor: $" << costoConGestor << "\n"
+             << "Consumo sin gestor: $" << costoSinGestor << "\n";
+        if (costoSinGestor > 0.0f) {
+            float ahorro = costoSinGestor - costoConGestor;
+            cout << "Ahorro: $" << ahorro << " ("
+                 << setprecision(1) << ahorro / costoSinGestor * 100.0f << " %)\n";
+        }
+        cout << setprecision(2) << "Medidor: " << medidor.getKWh()
+             << " kWh, $" << medidor.getCosto() << "\n";
+    }
+};
