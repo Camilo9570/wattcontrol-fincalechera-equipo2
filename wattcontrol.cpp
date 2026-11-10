@@ -135,3 +135,36 @@ private:
     float costoConGestor;
     int horasSimuladas;
     int fallas;
+    
+
+public:
+    Negocio(string nombreNegocio, Mercado* mercadoNegocio)
+        : nombre(nombreNegocio), cantidadCargas(0), mercado(mercadoNegocio),
+          costoSinGestor(0.0f), costoConGestor(0.0f), horasSimuladas(0), fallas(0) {}
+
+
+    void agregarCarga(Carga* carga) {
+        if (cantidadCargas < MAX_CARGAS) {
+            cargas[cantidadCargas++] = carga;
+        }
+    }
+
+
+    void mostrar() const {
+        cout << "\nNegocio: " << nombre << "\nCargas instaladas:\n";
+        for (int i = 0; i < cantidadCargas; ++i) {
+            cout << "  - " << cargas[i]->getNombre() << " ("
+                 << cargas[i]->getPotencia() << " kW)\n";
+        }
+    }
+
+
+    void evaluar(int hora, float precio, float nivel) const {
+        cout << "\nLectura: hora " << hora << ", precio " << precio
+             << " COP/kWh, embalse " << nivel << " %\n";
+        for (int i = 0; i < cantidadCargas; ++i) {
+            bool encender = cargas[i]->debeEncender(hora, precio, nivel);
+            cout << "  " << setw(24) << left << cargas[i]->getNombre() << right
+                 << (encender ? "ENCENDER" : "APLAZAR/APAGAR") << "\n";
+        }
+    }
