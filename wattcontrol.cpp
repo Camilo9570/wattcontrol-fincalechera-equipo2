@@ -279,3 +279,28 @@ float leerPrecio() {
     } while (precio <= 0.0f);
     return precio;
 }
+
+
+    int opcion;
+    int hora = 6;
+    float precio = 500.0f;
+    float nivel = 50.0f;
+    bool haySimulacion = false;
+    do {
+        cout << "\n===== WattControl: Finca lechera =====\n"
+             << "1. Ingresar lectura manual (hora, precio, embalse)\n"
+             << "2. Evaluar decision de cada carga\n"
+             << "3. Simular un dia completo (24 h)\n"
+             << "4. Ver resumen de la ultima simulacion\n"
+             << "0. Salir\n";
+        opcion = leerEntero("Opcion: ", 0, 4);
+        switch (opcion) {
+        case 1:
+            hora = leerEntero("Hora (0 a 23): ", 0, 23);
+            precio = leerPrecio();
+            nivel = static_cast<float>(leerEntero("Embalse o reserva (0 a 100 %): ", 0, 100));
+            cout << "Lectura guardada.\n";
+            break;
+        case 2:
+            finca.evaluar(hora, precio, nivel);
+            break;
