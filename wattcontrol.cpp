@@ -78,3 +78,60 @@ public:
                (precio >= PRECIO_BARATO && precio < PRECIO_ESCASEZ && nivel < NIVEL_CRITICO);
     }
 };
+
+
+class Medidor {
+private:
+    float kWh;
+    float costo;
+
+
+public:
+    Medidor() : kWh(0.0f), costo(0.0f) {}
+    void reiniciar() { kWh = 0.0f; costo = 0.0f; }
+    void registrar(float potencia, float precio) {
+        kWh += potencia;
+        costo += potencia * precio;
+    }
+    float getKWh() const { return kWh; }
+    float getCosto() const { return costo; }
+};
+
+
+class Mercado {
+public:
+    float precioHora(int hora) const {
+        int minimo = 0;
+        int maximo = 0;
+        if (hora <= 6) {
+            minimo = 398;
+            maximo = 640;
+        } else if (hora <= 14) {
+            minimo = 456;
+            maximo = 970;
+        } else if (hora <= 17) {
+            minimo = 596;
+            maximo = 1040;
+        } else if (hora <= 20) {
+            minimo = 705;
+            maximo = 1612;
+        } else {
+            minimo = 565;
+            maximo = 970;
+        }
+        return static_cast<float>(minimo + rand() % (maximo - minimo + 1));
+    }
+};
+
+
+class Negocio {
+private:
+    string nombre;
+    Medidor medidor;                 // Composicion: nace y muere con el negocio.
+    Carga* cargas[MAX_CARGAS];       // Agregacion: las cargas se crean afuera.
+    int cantidadCargas;
+    Mercado* mercado;                // Asociacion: el negocio conoce al mercado.
+    float costoSinGestor;
+    float costoConGestor;
+    int horasSimuladas;
+    int fallas;
