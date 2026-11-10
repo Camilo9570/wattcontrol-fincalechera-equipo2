@@ -293,3 +293,44 @@ int main() {
     finca.agregarCarga(&riego);
     finca.mostrar();
 
+
+    int opcion;
+    int hora = 6;
+    float precio = 500.0f;
+    float nivel = 50.0f;
+    bool haySimulacion = false;
+    do {
+        cout << "\n===== WattControl: Finca lechera =====\n"
+             << "1. Ingresar lectura manual (hora, precio, embalse)\n"
+             << "2. Evaluar decision de cada carga\n"
+             << "3. Simular un dia completo (24 h)\n"
+             << "4. Ver resumen de la ultima simulacion\n"
+             << "0. Salir\n";
+        opcion = leerEntero("Opcion: ", 0, 4);
+        switch (opcion) {
+        case 1:
+            hora = leerEntero("Hora (0 a 23): ", 0, 23);
+            precio = leerPrecio();
+            nivel = static_cast<float>(leerEntero("Embalse o reserva (0 a 100 %): ", 0, 100));
+            cout << "Lectura guardada.\n";
+            break;
+        case 2:
+            finca.evaluar(hora, precio, nivel);
+            break;
+         case 3:
+            finca.simularDia();
+            haySimulacion = true;
+            break;
+        case 4:
+            if (haySimulacion) finca.resumen();
+            else cout << "Primero ejecute la opcion 3.\n";
+            break;
+        case 0:
+            cout << "Hasta luego.\n";
+            break;
+        default:
+            cout << "Opcion invalida.\n";
+        }
+    } while (opcion != 0);
+    return 0;
+}
