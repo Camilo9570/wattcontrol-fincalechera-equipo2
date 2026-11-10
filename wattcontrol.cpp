@@ -245,3 +245,37 @@ public:
              << " kWh, $" << medidor.getCosto() << "\n";
     }
 };
+
+
+int leerEntero(const string& mensaje, int minimo, int maximo) {
+    int valor;
+    do {
+        cout << mensaje;
+        cin >> valor;
+        if (cin.fail()) {
+            cin.clear();
+            cin.ignore(10000, '\n');
+            valor = minimo - 1;
+        }
+        if (valor < minimo || valor > maximo) {
+            cout << "Valor invalido. Rango permitido: " << minimo << " a " << maximo << ".\n";
+        }
+    } while (valor < minimo || valor > maximo);
+    return valor;
+}
+
+
+float leerPrecio() {
+    float precio;
+    do {
+        cout << "Precio de energia (COP/kWh, mayor que 0): ";
+        cin >> precio;
+        if (cin.fail()) {
+            cin.clear();
+            cin.ignore(10000, '\n');
+            precio = 0.0f;
+        }
+        if (precio <= 0.0f) cout << "El precio debe ser mayor que 0.\n";
+    } while (precio <= 0.0f);
+    return precio;
+}
