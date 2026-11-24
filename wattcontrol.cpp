@@ -26,7 +26,6 @@ using namespace std;
 const float POTENCIA_ORDENADORA = 2.2f;
 const float POTENCIA_REFRIGERADOR = 3.0f;
 const float POTENCIA_BOMBA_RIEGO = 4.5f;
-const float POTENCIA_CONTRATADA = 8.0f;
 const float PRECIO_BARATO = 600.0f;
 const float PRECIO_ESCASEZ = 1500.0f;
 const float NIVEL_CRITICO = 20.0f;
@@ -49,8 +48,6 @@ public:
         : nombre(nombreCarga), potenciaKW(potencia), encendida(false), horasUso(0) {}
     virtual ~Carga() = default;
     virtual bool debeEncender(int hora, float precio, float nivel) = 0;
-    virtual bool esCritica() const = 0;
-    virtual int getHorasMinimas() const { return 0; }
 
     void encender() {
         encendida = true;
@@ -59,10 +56,6 @@ public:
 
 
     void apagar() { encendida = false; }
-    void reiniciarUso() { horasUso = 0; encendida = false; }
-
-    bool isEncendida() const { return encendida; }
-
     float costoHora(float precio) const { return encendida ? potenciaKW * precio : 0.0f; }
     string getNombre() const { return nombre; }
     float getPotencia() const { return potenciaKW; }
@@ -75,8 +68,6 @@ public:
 
     CargaCritica(string nombreCarga, float potencia) : Carga(nombreCarga, potencia) {}
 
-    bool esCritica() const override { return true; }
-
     bool debeEncender(int hora, float precio, float nivel) override {
         (void)hora;
         (void)precio;
@@ -87,27 +78,17 @@ public:
 
 
 class CargaAplazable : public Carga {
-private:
-    int horasMinimas;
-
 
 public:
     CargaAplazable(string nombreCarga, float potencia, int hMin = 5) 
-        : Carga(nombreCarga, potencia), horasMinimas(hMin) {}
-
-    bool esCritica() const override { return false; }
-    int getHorasMinimas() const override { return horasMinimas; }
+        : Carga(nombreCarga, potencia) {}
 
 
     bool debeEncender(int hora, float precio, float nivel) override {
-        bool horaPico = (hora >= PICO_INICIO && hora <= PICO_FIN);
-        bool embalseBajo = (nivel < NIVEL_CRITICO);
-        bool precioAlto = (precio >= PRECIO_BARATO);
-
-        if (embalseBajo || horaPico || precioAlto) {
-            return false; // Aplazar / Apagar
-        }
-        return true; // Encender
+        bool horaPico = hora >= PICO_INICIO && hora <= PICO_FIN;
+        return nivel < NIVEL_CRITICO ||
+               (!horaPico && precio < PRECIO_BARATO && nivel < NIVEL_OBJETIVO) ||
+               (precio >= PRECIO_BARATO && precio < PRECIO_ESCASEZ && nivel < NIVEL_CRITICO);
     }
 };
 
@@ -120,9 +101,7 @@ private:
 
 public:
     Medidor() : kWh(0.0f), costo(0.0f) {}
-
     void reiniciar() { kWh = 0.0f; costo = 0.0f; }
-
     void registrar(float potencia, float precio) {
         kWh += potencia;
         costo += potencia * precio;
@@ -193,152 +172,88 @@ public:
     void evaluar(int hora, float precio, float nivel) const {
         cout << "\nLectura: hora " << hora << ", precio " << precio
              << " COP/kWh, embalse " << nivel << " %\n";
-
-        float potenciaPretendida = 0.0f;
         for (int i = 0; i < cantidadCargas; ++i) {
-            const bool encender = cargas[i]->debeEncender(hora, precio, nivel);
-            if (encender) {
-                potenciaPretendida += cargas[i]->getPotencia();
-            }
+            bool encender = cargas[i]->debeEncender(hora, precio, nivel);
             cout << "  " << setw(24) << left << cargas[i]->getNombre() << right
                  << (encender ? "ENCENDER" : "APLAZAR/APAGAR") << "\n";
         }
-
-        if (potenciaPretendida > POTENCIA_CONTRATADA) {
-            cout << "  [ALERTA POTENCIA] Pretendida (" << potenciaPretendida
-                 << " kW) supera Contratada (" << POTENCIA_CONTRATADA << " kW).\n";
-        }
     }
 
-    void simularDia() {
+void simularDia() {
         medidor.reiniciar();
         costoSinGestor = 0.0f;
         costoConGestor = 0.0f;
         horasSimuladas = 0;
         fallas = 0;
-        for (int i = 0; i < cantidadCargas; ++i) {
-            cargas[i]->reiniciarUso();
-        }
-
         cout << "\n--- Simulacion de 24 horas ---\n";
         cout << setw(5) << "Hora" << setw(9) << "Precio" << setw(10)
              << "Gestor" << setw(14) << "Costo hora" << "\n";
 
-        for (int hora = 0; hora < HORAS_DIA; ++hora) {
-            const float precio = mercado->precioHora(hora);
-            const float nivelSimulado = 15.0f + static_cast<float>(rand() % 70);
-            float potenciaSinGestor = 0.0f;
 
-            for (int i = 0; i < cantidadCargas; ++i) {
-                potenciaSinGestor += cargas[i]->getPotencia();
-            }
+        for (int hora = 0; hora < HORAS_DIA; ++hora) {
+            float precio = mercado->precioHora(hora);
+            float potenciaSinGestor = POTENCIA_ORDENADORA + POTENCIA_REFRIGERADOR +
+                                      POTENCIA_BOMBA_RIEGO;
             costoSinGestor += potenciaSinGestor * precio;
 
-            if (precio > PRECIO_ESCASEZ && nivelSimulado < NIVEL_CRITICO) {
-                cout << setw(5) << hora << setw(9) << fixed << setprecision(0) << precio
-                     << " !!! [BREAK - RACIONAMIENTO EXTREMO] !!!\n";
+
+            if (precio > PRECIO_ESCASEZ) {
+                cout << setw(5) << hora << setw(9) << precio
+                     << " PRECIO DE ESCASEZ: break\n";
                 break;
             }
 
+
             ++horasSimuladas;
-
-
-            float potenciaPretendida = 0.0f;
-            for (int i = 0; i < cantidadCargas; ++i) {
-                if (cargas[i]->isEncendida()) {
-                    potenciaPretendida += cargas[i]->getPotencia();
-                }
-            }
-
             if (rand() % FALLA_CADA == 0) {
+                for (int i = 0; i < cantidadCargas; ++i) {
+                    cargas[i]->apagar();
+                }
                 ++fallas;
                 cout << setw(5) << hora << setw(9) << "--"
-                     << "  [FALLA LECTURA - CONTINUE] Solo opera Carga Critica\n";
-                for (int i = 0; i < cantidadCargas; ++i) {
-                    if (cargas[i]->esCritica()) {
-                        cargas[i]->encender();
-                        medidor.registrar(cargas[i]->getPotencia(), precio);
-                        costoConGestor += cargas[i]->costoHora(precio);
-                    } else {
-                        cargas[i]->apagar();
-                    }
-                }
+                     << " falla de lectura: continue\n";
                 continue;
             }
 
-            if (potenciaPretendida > POTENCIA_CONTRATADA) {
-                int idxMayor = -1;
-                float mayorPot = -1.0f;
-                for (int i = 0; i < cantidadCargas; ++i) {
-                    if (!cargas[i]->esCritica() && cargas[i]->isEncendida() && cargas[i]->getPotencia() > mayorPot) {
-                        mayorPot = cargas[i]->getPotencia();
-                        idxMayor = i;
-                    }
-                }
-                if (idxMayor != -1) {
-                    cargas[idxMayor]->apagar();
-                }
-            }
 
             float costoHora = 0.0f;
             for (int i = 0; i < cantidadCargas; ++i) {
-                if (cargas[i]->isEncendida()) {
+                if (cargas[i]->debeEncender(hora, precio, NIVEL_OBJETIVO)) {
+                    cargas[i]->encender();
                     costoHora += cargas[i]->costoHora(precio);
                     medidor.registrar(cargas[i]->getPotencia(), precio);
+                } else {
+                    cargas[i]->apagar();
                 }
             }
-
             costoConGestor += costoHora;
-            cout << setw(5) << hora << setw(9) << fixed << setprecision(0) << precio << setw(12) << "activo"
+            cout << setw(5) << hora << setw(9) << precio << setw(10) << "activo"
                  << setw(14) << fixed << setprecision(0) << costoHora << "\n";
         }
     }
+
 
     void resumen() const {
         cout << "\n--- Resumen de " << nombre << " ---\n";
         cout << "Horas simuladas: " << horasSimuladas << " de " << HORAS_DIA
              << " | fallas: " << fallas << "\n";
-
-        bool produccionIncompleta = false;
         for (int i = 0; i < cantidadCargas; ++i) {
             cout << "  " << setw(24) << left << cargas[i]->getNombre() << right
                  << cargas[i]->getHorasUso() << " h, "
-                 << cargas[i]->getHorasUso() * cargas[i]->getPotencia() << " kWh";
-
-            if (!cargas[i]->esCritica()) {
-                const int horasMinimas = cargas[i]->getHorasMinimas();
-                cout << " (Minimo: " << horasMinimas << " h)";
-                const bool incumplida = cargas[i]->getHorasUso() < horasMinimas;
-                if (incumplida) {
-                    cout << " -> [INCUMPLIDO]";
-                }
-                produccionIncompleta = produccionIncompleta || incumplida;
-            }
-            cout << "\n";
+                 << cargas[i]->getHorasUso() * cargas[i]->getPotencia() << " kWh\n";
         }
-
-        cout << fixed << setprecision(0);
-        cout << "Consumo con gestor: $" << costoConGestor << " COP\n";
-        cout << "Consumo sin gestor: $" << costoSinGestor << " COP\n";
-
-        const float ahorro = (costoSinGestor > 0.0f) ? (costoSinGestor - costoConGestor) : 0.0f;
+        cout << fixed << setprecision(0)
+             << "Consumo con gestor: $" << costoConGestor << "\n"
+             << "Consumo sin gestor: $" << costoSinGestor << "\n";
         if (costoSinGestor > 0.0f) {
-            cout << "Ahorro en pesos:    $" << ahorro << " COP (";
-            cout << setprecision(1) << (ahorro / costoSinGestor) * 100.0f << " % )\n";
+            float ahorro = costoSinGestor - costoConGestor;
+            cout << "Ahorro: $" << ahorro << " ("
+                 << setprecision(1) << ahorro / costoSinGestor * 100.0f << " %)\n";
         }
-
-        cout << setprecision(2);
-        cout << "Medidor: " << medidor.getKWh() << " kWh, $" << medidor.getCosto() << " COP\n";
-
-        const bool produccionCompleta = !produccionIncompleta;
-        if (!produccionIncompleta) {
-            cout << "\n [OK] PRODUCCION COMPLETA: Se cumplieron las horas minimas de operacion.\n";
-        } else {
-            cout << "\n [ALERTA] produccion incompleta: Cargas aplazables no alcanzaron las horas minimas.\n";
-        }
-    } // fin resumen()
-}; // fin class Negocio
-
+        cout << setprecision(2) << "Medidor: " << medidor.getKWh()
+             << " kWh, $" << medidor.getCosto() << "\n";
+    }
+};
 
 
 int leerEntero(const string& mensaje, int minimo, int maximo) {
@@ -378,11 +293,9 @@ float leerPrecio() {
 int main() {
     srand(SEMILLA);
     Mercado mercado;
-
     CargaCritica ordenadora("Ordenadora electrica", POTENCIA_ORDENADORA);
     CargaCritica refrigerador("Refrigerador de leche", POTENCIA_REFRIGERADOR);
     CargaAplazable riego("Bomba de riego", POTENCIA_BOMBA_RIEGO);
-    
     Negocio finca("Finca lechera El Buen Pasto", &mercado);
     finca.agregarCarga(&ordenadora);
     finca.agregarCarga(&refrigerador);
@@ -413,16 +326,13 @@ int main() {
         case 2:
             finca.evaluar(hora, precio, nivel);
             break;
-         case 3:
+        case 3:
             finca.simularDia();
             haySimulacion = true;
             break;
         case 4:
-            if (haySimulacion) {
-                finca.resumen();
-            } else {
-                cout << "Primero ejecute la opcion 3.\n";
-            }
+            if (haySimulacion) finca.resumen();
+            else cout << "Primero ejecute la opcion 3.\n";
             break;
         case 0:
             cout << "Hasta luego.\n";
